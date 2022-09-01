@@ -109,6 +109,11 @@ struct ALLEGRO_BITMAP
 
    /* set_target_bitmap and lock_bitmap mark bitmaps as dirty for preservation */
    bool dirty;
+
+  /* Palette support */
+  int palette_count;
+  void* palette_data;
+
 };
 
 struct ALLEGRO_BITMAP_INTERFACE
