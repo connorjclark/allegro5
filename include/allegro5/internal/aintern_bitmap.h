@@ -190,6 +190,8 @@ void _al_init_iio_table(void);
 
 int _al_get_bitmap_memory_format(ALLEGRO_BITMAP *bitmap);
 
+AL_FUNC(void, set_bitmap_palette_raw, (ALLEGRO_BITMAP *bitmap, void *data, int count));
+
 #ifdef __cplusplus
 }
 #endif
