@@ -113,7 +113,7 @@ struct ALLEGRO_BITMAP
   /* Palette support */
   int palette_count;
   void* palette_data;
-
+  unsigned short bit_count;
 };
 
 struct ALLEGRO_BITMAP_INTERFACE
@@ -191,6 +191,7 @@ void _al_init_iio_table(void);
 int _al_get_bitmap_memory_format(ALLEGRO_BITMAP *bitmap);
 
 AL_FUNC(void, set_bitmap_palette_raw, (ALLEGRO_BITMAP *bitmap, void *data, int count));
+AL_FUNC(void, set_bitmap_bit_count, (ALLEGRO_BITMAP *bitmap, unsigned short bit_count));
 
 #ifdef __cplusplus
 }
