@@ -79,6 +79,7 @@ static ALLEGRO_BITMAP *create_memory_bitmap(ALLEGRO_DISPLAY *current_display,
    al_get_new_bitmap_wrap(&bitmap->_wrap_u, &bitmap->_wrap_v);
    bitmap->palette_count = 0;
    bitmap->palette_data = NULL;
+   bitmap->bit_count = 0;
    
    _al_register_convert_bitmap(bitmap);
    return bitmap;
@@ -162,6 +163,7 @@ ALLEGRO_BITMAP *_al_create_bitmap_params(ALLEGRO_DISPLAY *current_display,
    al_get_new_bitmap_wrap(&bitmap->_wrap_u, &bitmap->_wrap_v);
    bitmap->palette_count = 0;
    bitmap->palette_data = NULL;
+   bitmap->bit_count = 0;
 
    /* The display driver should have set the bitmap->memory field if
     * appropriate; video bitmaps may leave it NULL.
@@ -605,6 +607,7 @@ ALLEGRO_BITMAP *al_create_sub_bitmap(ALLEGRO_BITMAP *parent,
    bitmap->memory = NULL;
    bitmap->palette_count = 0;
    bitmap->palette_data = NULL;
+   bitmap->bit_count = 0;
 
    bitmap->dtor_item = _al_register_destructor(_al_dtor_list, "sub_bitmap", bitmap,
       (void (*)(void *))al_destroy_bitmap);
@@ -868,6 +871,16 @@ void set_bitmap_palette_raw(ALLEGRO_BITMAP *bitmap, void *data, int count) {
       al_free(bitmap->palette_data);
    bitmap->palette_data = data;
    bitmap->palette_count = count;
+}
+
+void set_bitmap_bit_count(ALLEGRO_BITMAP *bitmap, unsigned short bit_count) {
+   bitmap->bit_count = bit_count;
+}
+/* Function: al_get_bitmap_bit_count
+ */
+unsigned short al_get_bitmap_bit_count(ALLEGRO_BITMAP* bitmap)
+{
+   return bitmap->bit_count;
 }
 
 /* vim: set ts=8 sts=3 sw=3 et: */
