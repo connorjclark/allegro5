@@ -75,6 +75,11 @@ int main(int argc, char **argv)
       abort_example("Error creating display\n");
    }
 
+   // Resize the display - this is to excercise the resizing code wrt.
+   // cursor display boundraries, which requires some special care on some platforms
+   // (such as OSX).
+   al_resize_display(display, 640*1.5, 480*1.5);
+
    al_hide_mouse_cursor(display);
 
    cursor = al_load_bitmap("data/cursor.tga");
@@ -109,6 +114,9 @@ int main(int argc, char **argv)
          al_draw_textf(font, black, 5, 85, 0, "wheel precision (PgUp/PgDn) %d", precision);
          al_set_blender(ALLEGRO_ADD, ALLEGRO_ONE, ALLEGRO_INVERSE_ALPHA);
          mmx = mmy = mmz = 0;
+         // ALLEGRO_TRANSFORM transform;
+         // al_build_transform(&transform, 0, 0, 2, 2, 0);
+         // al_use_transform(&transform);
          al_flip_display();
       }
 
