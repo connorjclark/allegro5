@@ -30,6 +30,7 @@
 #include <X11/Xutil.h>
 #include <X11/Xproto.h>
 #include <X11/XKBlib.h>
+#include <stdio.h>
 
 #include "allegro5/allegro.h"
 #include "allegro5/internal/aintern.h"
@@ -680,26 +681,35 @@ static bool _al_xwin_get_keyboard_mapping(void)
  */
 static void x_set_leds(int leds)
 {
+   fprintf(stderr, "x_set_leds enter\n");
+
    XKeyboardControl values;
+   fprintf(stderr, "x_set_leds 1\n");
    ALLEGRO_SYSTEM_XGLX *system = (void *)al_get_system_driver();
 
    ASSERT(xkeyboard_installed);
+   fprintf(stderr, "x_set_leds 2\n");
 
    _al_mutex_lock(&system->lock);
+   fprintf(stderr, "x_set_leds 3\n");
 
    values.led = 1;
    values.led_mode = leds & ALLEGRO_KEYMOD_NUMLOCK ? LedModeOn : LedModeOff;
    XChangeKeyboardControl(system->x11display, KBLed | KBLedMode, &values);
+   fprintf(stderr, "x_set_leds 4\n");
 
    values.led = 2;
    values.led_mode = leds & ALLEGRO_KEYMOD_CAPSLOCK ? LedModeOn : LedModeOff;
    XChangeKeyboardControl(system->x11display, KBLed | KBLedMode, &values);
+   fprintf(stderr, "x_set_leds 5\n");
 
    values.led = 3;
    values.led_mode = leds & ALLEGRO_KEYMOD_SCROLLLOCK ? LedModeOn : LedModeOff;
    XChangeKeyboardControl(system->x11display, KBLed | KBLedMode, &values);
+   fprintf(stderr, "x_set_leds 6\n");
 
    _al_mutex_unlock(&system->lock);
+   fprintf(stderr, "x_set_leds exit\n");
 }
 
 
