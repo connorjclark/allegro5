@@ -309,7 +309,7 @@ static int keycode_to_char(int keycode)
  */
 static bool lkeybd_init_keyboard(void)
 {
-   printf("lkeybd_init_keyboard enter\n");
+   fprintf(stderr, "lkeybd_init_keyboard enter\n");
    bool can_restore_termio_and_kbmode = false;
 
    memset(&the_keyboard, 0, sizeof the_keyboard);
@@ -324,13 +324,13 @@ static bool lkeybd_init_keyboard(void)
     * we close up shop.
     */
    if (tcgetattr(the_keyboard.fd, &the_keyboard.startup_termio) != 0) {
-      printf("lkeybd_init_keyboard ERROR A\n");
+      fprintf(stderr, "lkeybd_init_keyboard ERROR A\n");
       goto Error;
    }
 
    /* Save previous keyboard mode (probably XLATE). */
    if (ioctl(the_keyboard.fd, KDGKBMODE, &the_keyboard.startup_kbmode) != 0) {
-      printf("lkeybd_init_keyboard ERROR B\n");
+      fprintf(stderr, "lkeybd_init_keyboard ERROR B\n");
       //goto Error;
    }
 
@@ -361,13 +361,13 @@ static bool lkeybd_init_keyboard(void)
    the_keyboard.work_termio.c_lflag &= ~(ICANON | ECHO | ISIG);
 
    if (tcsetattr(the_keyboard.fd, TCSANOW, &the_keyboard.work_termio) != 0) {
-      printf("lkeybd_init_keyboard ERROR C\n");
+      fprintf(stderr, "lkeybd_init_keyboard ERROR C\n");
       goto Error;
    }
 
    /* Set the keyboard mode to mediumraw. */
    if (ioctl(the_keyboard.fd, KDSKBMODE, K_MEDIUMRAW) != 0) {
-      printf("lkeybd_init_keyboard ERROR D\n");
+      fprintf(stderr, "lkeybd_init_keyboard ERROR D\n");
       //goto Error;
    }
 
@@ -399,12 +399,12 @@ static bool lkeybd_init_keyboard(void)
    /* Get the pid, which we use for the three finger salute */
    main_pid = getpid();
 
-   printf("lkeybd_init_keyboard OK\n");
+   fprintf(stderr, "lkeybd_init_keyboard OK\n");
    return true;
 
   Error:
 
-   printf("lkeybd_init_keyboard ERROR\n");
+   fprintf(stderr, "lkeybd_init_keyboard ERROR\n");
    if (can_restore_termio_and_kbmode) {
       tcsetattr(the_keyboard.fd, TCSANOW, &the_keyboard.startup_termio);
       ioctl(the_keyboard.fd, KDSKBMODE, the_keyboard.startup_kbmode);
@@ -426,7 +426,7 @@ static bool lkeybd_init_keyboard(void)
  */
 static void lkeybd_exit_keyboard(void)
 {
-   printf("lkeybd_exit_keyboard enter\n");
+   fprintf(stderr, "lkeybd_exit_keyboard enter\n");
    _al_unix_stop_watching_fd(the_keyboard.fd);
 
    _al_event_source_free(&the_keyboard.parent.es);
@@ -444,7 +444,7 @@ static void lkeybd_exit_keyboard(void)
     * we return to the user is always the same.
     */
    memset(&the_keyboard, 0, sizeof the_keyboard);
-   printf("lkeybd_exit_keyboard exit\n");
+   fprintf(stderr, "lkeybd_exit_keyboard exit\n");
 }
 
 
@@ -464,16 +464,16 @@ static ALLEGRO_KEYBOARD *lkeybd_get_keyboard(void)
  */
 static bool lkeybd_set_keyboard_leds(int leds)
 {
-   printf("lkeybd_set_keyboard_leds enter\n");
+   fprintf(stderr, "lkeybd_set_keyboard_leds enter\n");
    int val = 0;
 
    if (leds & ALLEGRO_KEYMOD_SCROLLLOCK) val |= LED_SCR;
    if (leds & ALLEGRO_KEYMOD_NUMLOCK)    val |= LED_NUM;
    if (leds & ALLEGRO_KEYMOD_CAPSLOCK)   val |= LED_CAP;
 
-   printf("lkeybd_set_keyboard_leds 1\n");
+   fprintf(stderr, "lkeybd_set_keyboard_leds 1\n");
    int r = ioctl(the_keyboard.fd, KDSETLED, val);
-   printf("lkeybd_set_keyboard_leds 2 r: %d\n", r);
+   fprintf(stderr, "lkeybd_set_keyboard_leds 2 r: %d\n", r);
    return (r == 0) ? true : false;
 }
 
