@@ -108,6 +108,7 @@ AL_FUNC(void, al_convert_memory_bitmaps, (void));
 #if defined(ALLEGRO_UNSTABLE) || defined(ALLEGRO_INTERNAL_UNSTABLE) || defined(ALLEGRO_SRC)
 AL_FUNC(void, al_backup_dirty_bitmap, (ALLEGRO_BITMAP *bitmap));
 AL_FUNC(int, al_get_bitmap_palette, (ALLEGRO_BITMAP *bitmap, ALLEGRO_COLOR *palette));
+AL_FUNC(unsigned short, al_get_bitmap_bit_count, (ALLEGRO_BITMAP *bitmap));
 
 #endif
 

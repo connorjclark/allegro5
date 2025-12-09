@@ -1433,6 +1433,7 @@ ALLEGRO_BITMAP *_al_load_bmp_f(ALLEGRO_FILE *f, int flags)
 
    if (keep_palette && (ncolors > 0))
      install_palette(bmp, pal, ncolors);
+   set_bitmap_bit_count(bmp, infoheader.biBitCount);
 
    if (infoheader.biWidth == 0 || infoheader.biHeight == 0) {
       ALLEGRO_WARN("Creating zero-sized bitmap\n");
