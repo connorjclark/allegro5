@@ -430,6 +430,7 @@ void _al_osx_mouse_was_installed(BOOL install) {
 /* Cursor handling */
 - (void) viewDidMoveToWindow {
    ALLEGRO_DISPLAY_OSX_WIN* dpy =  (ALLEGRO_DISPLAY_OSX_WIN*) dpy_ptr;
+   if (!dpy) return;
    if (dpy->tracking) {
       [self removeTrackingArea: dpy->tracking];
    }
@@ -439,6 +440,7 @@ void _al_osx_mouse_was_installed(BOOL install) {
 
 - (void) viewWillMoveToWindow: (NSWindow*) newWindow {
    ALLEGRO_DISPLAY_OSX_WIN* dpy = (ALLEGRO_DISPLAY_OSX_WIN*) dpy_ptr;
+   if (!dpy) return;
    (void)newWindow;
    if (([self window] != nil) && (dpy->tracking != 0)) {
       [self removeTrackingArea:dpy->tracking];
@@ -1873,6 +1875,7 @@ static void destroy_display(ALLEGRO_DISPLAY* d)
       al_destroy_cond(dpy->flip_cond);
       CVDisplayLinkRelease(dpy->display_link);
    }
+   [dpy->view setAllegroDisplay: NULL];
    al_free(d->vertex_cache);
    al_free(d);
    [pool drain];
