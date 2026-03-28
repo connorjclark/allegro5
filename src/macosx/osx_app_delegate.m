@@ -192,9 +192,13 @@ static BOOL in_bundle(void)
     }
     /* else: not in a bundle so don't chdir */
 
-    [NSThread detachNewThreadSelector: @selector(app_main:)
-                             toTarget: [AllegroAppDelegate class]
-                           withObject: nil];
+    NSThread *thread = [[NSThread alloc] initWithTarget:[AllegroAppDelegate class] 
+                                               selector:@selector(app_main:) 
+                                                 object:nil];
+    [thread setStackSize:8388608]; /* 8 MB */
+    [thread start];
+    [thread release];
+
     return;
 }
 
