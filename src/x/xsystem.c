@@ -197,13 +197,17 @@ static ALLEGRO_MOUSE_DRIVER *xglx_get_mouse_driver(void)
    return _al_xwin_mouse_driver();
 }
 
+/* The SDL2 joystick driver is the default when compiled in; set
+ * [joystick] driver = native in the system config to use the native
+ * (evdev) driver instead.
+ */
 static ALLEGRO_JOYSTICK_DRIVER *xglx_get_joystick_driver(void)
 {
 #ifdef ALLEGRO_CFG_SDL2_JOYSTICK
-   return _al_sdl_joystick_driver();
-#else
-   return _al_joystick_driver_list[0].driver;
+   if (!_al_joystick_configured_driver_is("NATIVE"))
+      return _al_sdl_joystick_driver();
 #endif
+   return _al_joystick_driver_list[0].driver;
 }
 
 static ALLEGRO_HAPTIC_DRIVER *xglx_get_haptic_driver(void)

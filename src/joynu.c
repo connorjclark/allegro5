@@ -881,6 +881,23 @@ bool al_set_joystick_mappings_f(ALLEGRO_FILE *f)
 
 
 
+/* Checks whether the configured joystick driver ([joystick] driver in the
+ * system config) is of the given name. Also returns false if the
+ * configuration entry was not set. Mirrors the same logic in wsystem.c.
+ */
+bool _al_joystick_configured_driver_is(const char *name)
+{
+   ALLEGRO_CONFIG *sysconf = al_get_system_config();
+   if (!sysconf)
+      return false;
+   const char *driver = al_get_config_value(sysconf, "joystick", "driver");
+   if (!driver)
+      return false;
+   return 0 == _al_stricmp(driver, name);
+}
+
+
+
 const _AL_VECTOR *_al_get_raw_joystick_mapping_lines(void)
 {
    return &raw_joystick_mapping_lines;

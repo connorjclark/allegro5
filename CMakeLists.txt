@@ -956,14 +956,26 @@ if(ALLEGRO_MACOSX)
 endif(ALLEGRO_MACOSX)
 
 if(WANT_SDL2_JOYSTICK AND NOT ALLEGRO_SDL)
-    include(FindSDL2)
-    if(NOT SDL2_FOUND)
-        message(FATAL_ERROR "WANT_SDL2_JOYSTICK requires SDL2, which was not found")
+    if(NOT ALLEGRO_UNIX AND NOT ALLEGRO_MACOSX)
+        # Only the X11 and OSX system drivers know how to select the SDL
+        # joystick driver; anywhere else it would link SDL2 as dead code.
+        message(FATAL_ERROR "WANT_SDL2_JOYSTICK is not supported on this platform")
     endif()
     set(ALLEGRO_CFG_SDL2_JOYSTICK 1)
     list(APPEND LIBRARY_SOURCES src/sdl/sdl_joystick.c)
-    list(APPEND PLATFORM_LIBS ${SDL2_LIBRARY})
-    include_directories(${SDL2_INCLUDE_DIR})
+    if(TARGET SDL2-static)
+        # Provided by the parent project (e.g. a vendored SDL2 sub-build).
+        # BUILD_INTERFACE keeps the foreign target out of the install export;
+        # the build-tree export() below is skipped in this configuration.
+        list(APPEND PLATFORM_LIBS $<BUILD_INTERFACE:SDL2-static>)
+    else()
+        include(FindSDL2)
+        if(NOT SDL2_FOUND)
+            message(FATAL_ERROR "WANT_SDL2_JOYSTICK requires SDL2, which was not found")
+        endif()
+        list(APPEND PLATFORM_LIBS ${SDL2_LIBRARY})
+        include_directories(${SDL2_INCLUDE_DIR})
+    endif()
 endif()
 
 if(IPHONE)
@@ -1279,11 +1291,15 @@ install(
   DESTINATION ${PKG_CONFIG_INSTALL_DIR}
 )
 
-# Export build tree to ease development and debugging
-export(EXPORT ${PKG_TARGETS_NAME}
-  FILE "${PKG_GENERATED_DIR}/${PKG_NAME}Targets.cmake"
-  NAMESPACE ${PKG_NAME}::
-)
+# Export build tree to ease development and debugging.
+# Skipped when linking a vendored SDL2-static: that foreign target cannot be
+# part of this export set.
+if(NOT (WANT_SDL2_JOYSTICK AND NOT ALLEGRO_SDL AND TARGET SDL2-static))
+  export(EXPORT ${PKG_TARGETS_NAME}
+    FILE "${PKG_GENERATED_DIR}/${PKG_NAME}Targets.cmake"
+    NAMESPACE ${PKG_NAME}::
+  )
+endif()
 
 #-----------------------------------------------------------------------------#
 #

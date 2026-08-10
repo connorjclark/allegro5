@@ -565,6 +565,19 @@ static void osx_thread_exit(ALLEGRO_THREAD *thread)
 }
 
 /* Internal function to get a reference to this driver. */
+/* The SDL2 joystick driver is the default when compiled in; set
+ * [joystick] driver = native in the system config to use the native
+ * (HID) driver instead.
+ */
+static ALLEGRO_JOYSTICK_DRIVER *osx_get_joystick_driver(void)
+{
+#ifdef ALLEGRO_CFG_SDL2_JOYSTICK
+   if (!_al_joystick_configured_driver_is("NATIVE"))
+      return _al_sdl_joystick_driver();
+#endif
+   return _al_osx_get_joystick_driver();
+}
+
 ALLEGRO_SYSTEM_INTERFACE *_al_system_osx_driver(void)
 {
    static ALLEGRO_SYSTEM_INTERFACE* vt = NULL;
@@ -576,11 +589,7 @@ ALLEGRO_SYSTEM_INTERFACE *_al_system_osx_driver(void)
       vt->get_display_driver = _al_osx_get_display_driver;
       vt->get_keyboard_driver = _al_osx_get_keyboard_driver;
       vt->get_mouse_driver = _al_osx_get_mouse_driver;
-#ifdef ALLEGRO_CFG_SDL2_JOYSTICK
-      vt->get_joystick_driver = _al_sdl_joystick_driver;
-#else
-      vt->get_joystick_driver = _al_osx_get_joystick_driver;
-#endif
+      vt->get_joystick_driver = osx_get_joystick_driver;
       vt->get_num_display_modes = _al_osx_get_num_display_modes;
       vt->get_display_mode = _al_osx_get_display_mode;
       vt->shutdown_system = osx_sys_exit;
