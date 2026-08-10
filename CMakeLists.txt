@@ -956,9 +956,9 @@ if(ALLEGRO_MACOSX)
 endif(ALLEGRO_MACOSX)
 
 if(WANT_SDL2_JOYSTICK AND NOT ALLEGRO_SDL)
-    if(NOT ALLEGRO_UNIX AND NOT ALLEGRO_MACOSX)
-        # Only the X11 and OSX system drivers know how to select the SDL
-        # joystick driver; anywhere else it would link SDL2 as dead code.
+    if(NOT ALLEGRO_UNIX AND NOT ALLEGRO_MACOSX AND NOT WIN32)
+        # Only the X11, OSX and Windows system drivers know how to select the
+        # SDL joystick driver; anywhere else it would link SDL2 as dead code.
         message(FATAL_ERROR "WANT_SDL2_JOYSTICK is not supported on this platform")
     endif()
     set(ALLEGRO_CFG_SDL2_JOYSTICK 1)

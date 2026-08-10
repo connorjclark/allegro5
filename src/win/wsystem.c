@@ -24,6 +24,7 @@
 #include "allegro5/allegro.h"
 #include "allegro5/internal/aintern.h"
 #include "allegro5/internal/aintern_bitmap.h"
+#include "allegro5/internal/aintern_joystick.h"
 #include "allegro5/internal/aintern_system.h"
 #include "allegro5/platform/aintwin.h"
 #include "allegro5/internal/aintern_wunicode.h"
@@ -387,6 +388,14 @@ static bool win_use_directinput(void)
  * or xinput exclusive is set.*/
 static ALLEGRO_JOYSTICK_DRIVER *win_get_joystick_driver(void)
 {
+#ifdef ALLEGRO_CFG_SDL2_JOYSTICK
+   if (win_configured_joystick_driver_is("SDL")
+      || win_configured_joystick_driver_is("SDL2")) {
+      ALLEGRO_DEBUG("Selected SDL2 joystick driver.\n");
+      return _al_sdl_joystick_driver();
+   }
+#endif
+
    if (win_use_directinput()) {
       ALLEGRO_DEBUG("Selected DirectInput joystick driver.\n");
       return &_al_joydrv_directx;
