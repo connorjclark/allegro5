@@ -30,6 +30,8 @@
 
 #cmakedefine ALLEGRO_CFG_HAVE_XINPUT_CAPABILITIES_EX
 
+#cmakedefine ALLEGRO_CFG_SDL2_JOYSTICK
+
 /*---------------------------------------------------------------------------*/
 
 /* Define to 1 if you have the corresponding header file. */

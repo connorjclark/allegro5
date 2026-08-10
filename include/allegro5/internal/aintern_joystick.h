@@ -144,6 +144,11 @@ _AL_JOYSTICK_OUTPUT _al_new_joystick_button_output(int button);
 _AL_JOYSTICK_OUTPUT _al_new_joystick_stick_output(int stick, int axis);
 void _al_joystick_generate_button_event(ALLEGRO_JOYSTICK *joy, ALLEGRO_JOYSTICK_STATE *joystate, _AL_JOYSTICK_OUTPUT output, int value);
 void _al_joystick_generate_axis_event(ALLEGRO_JOYSTICK *joy, ALLEGRO_JOYSTICK_STATE *joystate, _AL_JOYSTICK_OUTPUT output, float pos);
+const _AL_VECTOR *_al_get_raw_joystick_mapping_lines(void);
+
+#ifdef ALLEGRO_CFG_SDL2_JOYSTICK
+AL_FUNC(ALLEGRO_JOYSTICK_DRIVER *, _al_sdl_joystick_driver, (void));
+#endif
 
 #ifdef __cplusplus
    }

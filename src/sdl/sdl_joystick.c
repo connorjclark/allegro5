@@ -15,9 +15,24 @@
 #include "allegro5/allegro.h"
 #include "allegro5/internal/aintern.h"
 #include "allegro5/internal/aintern_system.h"
+#include "allegro5/internal/aintern_thread.h"
 #include "allegro5/platform/allegro_internal_sdl.h"
 
 ALLEGRO_DEBUG_CHANNEL("SDL")
+
+/* This driver normally runs as part of the SDL platform port, where the SDL
+ * system driver owns SDL_Init and pumps SDL events into
+ * _al_sdl_joystick_event via its heartbeat.
+ *
+ * In standalone mode (ALLEGRO_CFG_SDL2_JOYSTICK, on an otherwise native
+ * platform such as X11 or OSX), this driver owns the SDL joystick subsystem
+ * itself: it initializes just SDL's joystick/gamecontroller subsystems and
+ * pumps their events from a background thread. Nothing else in Allegro uses
+ * SDL in this configuration.
+ */
+#if defined(ALLEGRO_CFG_SDL2_JOYSTICK) && !defined(ALLEGRO_SDL)
+#define SDL2_JOYSTICK_STANDALONE
+#endif
 
 typedef struct ALLEGRO_JOYSTICK_SDL
 {
@@ -31,6 +46,30 @@ typedef struct ALLEGRO_JOYSTICK_SDL
 static ALLEGRO_JOYSTICK_DRIVER *vt;
 static int num_joysticks; /* number of joysticks known to the user */
 static _AL_VECTOR joysticks = _AL_VECTOR_INITIALIZER(ALLEGRO_JOYSTICK_SDL *); /* of ALLEGRO_JOYSTICK_SDL pointers */
+
+#ifdef SDL2_JOYSTICK_STANDALONE
+static _AL_THREAD standalone_thread;
+static _AL_MUTEX standalone_mutex; /* zero-init: unlocked until _al_mutex_init */
+#endif
+
+/* In standalone mode the event pump runs on a background thread while
+ * reconfigure/state queries run on app threads, so the joysticks vector
+ * needs guarding. In the SDL platform port everything runs under the SDL
+ * system driver's pumping and these are no-ops.
+ */
+static void joysticks_lock(void)
+{
+#ifdef SDL2_JOYSTICK_STANDALONE
+   _al_mutex_lock(&standalone_mutex);
+#endif
+}
+
+static void joysticks_unlock(void)
+{
+#ifdef SDL2_JOYSTICK_STANDALONE
+   _al_mutex_unlock(&standalone_mutex);
+#endif
+}
 
 static bool compat_5_2_10(void) {
    /* Mappings. */
@@ -48,14 +87,13 @@ static ALLEGRO_JOYSTICK_SDL *get_joystick_from_allegro(ALLEGRO_JOYSTICK *allegro
    return NULL;
 }
 
-static ALLEGRO_JOYSTICK_SDL *get_joystick(SDL_JoystickID id)
+static ALLEGRO_JOYSTICK_SDL *get_joystick_opt(SDL_JoystickID id)
 {
    for (int i = 0; i < (int)_al_vector_size(&joysticks); i++) {
       ALLEGRO_JOYSTICK_SDL *joy = *(ALLEGRO_JOYSTICK_SDL **)_al_vector_ref(&joysticks, i);
       if (joy->id == id)
          return joy;
    }
-   ASSERT(false);
    return NULL;
 }
 
@@ -96,8 +134,8 @@ void _al_sdl_joystick_event(SDL_Event *e)
    event.joystick.timestamp = al_get_time();
 
    if (e->type == SDL_CONTROLLERAXISMOTION) {
-      ALLEGRO_JOYSTICK_SDL *joy = get_joystick(e->caxis.which);
-      if (joy->allegro.info.type != ALLEGRO_JOYSTICK_TYPE_GAMEPAD)
+      ALLEGRO_JOYSTICK_SDL *joy = get_joystick_opt(e->caxis.which);
+      if (!joy || joy->allegro.info.type != ALLEGRO_JOYSTICK_TYPE_GAMEPAD)
          return;
       int stick = -1;
       int axis = -1;
@@ -144,8 +182,8 @@ void _al_sdl_joystick_event(SDL_Event *e)
       float pos = 0.;
       bool down = e->type == SDL_CONTROLLERBUTTONDOWN;
       int type = down ? ALLEGRO_EVENT_JOYSTICK_BUTTON_DOWN : ALLEGRO_EVENT_JOYSTICK_BUTTON_UP;
-      ALLEGRO_JOYSTICK_SDL *joy = get_joystick(e->cbutton.which);
-      if (joy->allegro.info.type != ALLEGRO_JOYSTICK_TYPE_GAMEPAD)
+      ALLEGRO_JOYSTICK_SDL *joy = get_joystick_opt(e->cbutton.which);
+      if (!joy || joy->allegro.info.type != ALLEGRO_JOYSTICK_TYPE_GAMEPAD)
          return;
 
       switch (e->cbutton.button) {
@@ -228,8 +266,8 @@ void _al_sdl_joystick_event(SDL_Event *e)
       emit = true;
    }
    else if (e->type == SDL_JOYAXISMOTION) {
-      ALLEGRO_JOYSTICK_SDL *joy = get_joystick(e->jaxis.which);
-      if (joy->allegro.info.type != ALLEGRO_JOYSTICK_TYPE_UNKNOWN)
+      ALLEGRO_JOYSTICK_SDL *joy = get_joystick_opt(e->jaxis.which);
+      if (!joy || joy->allegro.info.type != ALLEGRO_JOYSTICK_TYPE_UNKNOWN)
          return;
       event.joystick.type = ALLEGRO_EVENT_JOYSTICK_AXIS;
       event.joystick.id = &joy->allegro;
@@ -240,8 +278,8 @@ void _al_sdl_joystick_event(SDL_Event *e)
       emit = true;
    }
    else if (e->type == SDL_JOYBUTTONDOWN) {
-      ALLEGRO_JOYSTICK_SDL *joy = get_joystick(e->jbutton.which);
-      if (joy->allegro.info.type != ALLEGRO_JOYSTICK_TYPE_UNKNOWN)
+      ALLEGRO_JOYSTICK_SDL *joy = get_joystick_opt(e->jbutton.which);
+      if (!joy || joy->allegro.info.type != ALLEGRO_JOYSTICK_TYPE_UNKNOWN)
          return;
       event.joystick.type = ALLEGRO_EVENT_JOYSTICK_BUTTON_DOWN;
       event.joystick.id = &joy->allegro;
@@ -252,8 +290,8 @@ void _al_sdl_joystick_event(SDL_Event *e)
       emit = true;
    }
    else if (e->type == SDL_JOYBUTTONUP) {
-      ALLEGRO_JOYSTICK_SDL *joy = get_joystick(e->jbutton.which);
-      if (joy->allegro.info.type != ALLEGRO_JOYSTICK_TYPE_UNKNOWN)
+      ALLEGRO_JOYSTICK_SDL *joy = get_joystick_opt(e->jbutton.which);
+      if (!joy || joy->allegro.info.type != ALLEGRO_JOYSTICK_TYPE_UNKNOWN)
          return;
       event.joystick.type = ALLEGRO_EVENT_JOYSTICK_BUTTON_UP;
       event.joystick.id = &joy->allegro;
@@ -340,8 +378,11 @@ static void sdl_exit_joystick(void)
 
 static bool sdl_reconfigure_joysticks(void)
 {
+   joysticks_lock();
    clear_joysticks();
-   return sdl_init_joystick();
+   bool ok = sdl_init_joystick();
+   joysticks_unlock();
+   return ok;
 }
 
 static int sdl_num_joysticks(void)
@@ -351,15 +392,20 @@ static int sdl_num_joysticks(void)
 
 static ALLEGRO_JOYSTICK *sdl_get_joystick(int joyn)
 {
+   ALLEGRO_JOYSTICK *ret = NULL;
+   joysticks_lock();
    for (int i = 0; i < (int)_al_vector_size(&joysticks); i++) {
       ALLEGRO_JOYSTICK_SDL *joy = *(ALLEGRO_JOYSTICK_SDL **)_al_vector_ref(&joysticks, i);
       if (SDL_JoystickFromInstanceID(joy->id)) {
-         if (joyn == 0)
-            return &joy->allegro;
+         if (joyn == 0) {
+            ret = &joy->allegro;
+            break;
+         }
          joyn--;
       }
    }
-   return NULL;
+   joysticks_unlock();
+   return ret;
 }
 
 static void sdl_release_joystick(ALLEGRO_JOYSTICK *joy)
@@ -370,8 +416,11 @@ static void sdl_release_joystick(ALLEGRO_JOYSTICK *joy)
 static void sdl_get_joystick_state(ALLEGRO_JOYSTICK *joy,
    ALLEGRO_JOYSTICK_STATE *ret_state)
 {
+#ifndef SDL2_JOYSTICK_STANDALONE
    ALLEGRO_SYSTEM_INTERFACE *s = _al_sdl_system_driver();
    s->heartbeat();
+#endif
+   joysticks_lock();
 
 #define BUTTON(x) ((x) * 32767)
 #define AXIS(x) ((x) / 32768.0)
@@ -418,27 +467,115 @@ static void sdl_get_joystick_state(ALLEGRO_JOYSTICK *joy,
 #undef AXIS
 #undef BUTTON
 
+   joysticks_unlock();
 }
 
 static const char *sdl_get_name(ALLEGRO_JOYSTICK *joy)
 {
+   const char *ret = NULL;
+   joysticks_lock();
    ALLEGRO_JOYSTICK_SDL *joy_sdl = get_joystick_from_allegro(joy);
    if (joy_sdl->sdl)
-      return SDL_JoystickName(joy_sdl->sdl);
-   if (joy_sdl->sdl_gc)
-      return SDL_GameControllerName(joy_sdl->sdl_gc);
-   return NULL;
+      ret = SDL_JoystickName(joy_sdl->sdl);
+   else if (joy_sdl->sdl_gc)
+      ret = SDL_GameControllerName(joy_sdl->sdl_gc);
+   joysticks_unlock();
+   return ret;
 }
 
 static bool sdl_get_active(ALLEGRO_JOYSTICK *joy)
 {
+   bool ret = false;
+   joysticks_lock();
    ALLEGRO_JOYSTICK_SDL *joy_sdl = get_joystick_from_allegro(joy);
    if (joy_sdl->sdl)
-      return SDL_JoystickGetAttached(joy_sdl->sdl);
-   if (joy_sdl->sdl_gc)
-      return SDL_GameControllerGetAttached(joy_sdl->sdl_gc);
-   return false;
+      ret = SDL_JoystickGetAttached(joy_sdl->sdl);
+   else if (joy_sdl->sdl_gc)
+      ret = SDL_GameControllerGetAttached(joy_sdl->sdl_gc);
+   joysticks_unlock();
+   return ret;
 }
+
+#ifdef SDL2_JOYSTICK_STANDALONE
+
+/* Feed mapping lines the user gave to al_set_joystick_mappings into SDL,
+ * which understands the same format. SDL itself filters nothing here, so
+ * skip lines meant for other platforms.
+ */
+static void standalone_add_mappings(void)
+{
+   const _AL_VECTOR *lines = _al_get_raw_joystick_mapping_lines();
+   const char *platform = SDL_GetPlatform();
+   for (int i = 0; i < (int)_al_vector_size(lines); i++) {
+      const char *line = *(char **)_al_vector_ref((_AL_VECTOR *)lines, i);
+      const char *p = strstr(line, "platform:");
+      if (p) {
+         p += strlen("platform:");
+         size_t n = strcspn(p, ",\r\n");
+         if (n != strlen(platform) || strncmp(p, platform, n) != 0)
+            continue;
+      }
+      if (SDL_GameControllerAddMapping(line) < 0)
+         ALLEGRO_WARN("SDL rejected mapping line: %s\n", line);
+   }
+}
+
+static void standalone_pump(_AL_THREAD *self, void *unused)
+{
+   (void)unused;
+   SDL_Event events[16];
+   while (!_al_get_thread_should_stop(self)) {
+      SDL_PumpEvents();
+      int n;
+      while ((n = SDL_PeepEvents(events, 16, SDL_GETEVENT,
+            SDL_JOYAXISMOTION, SDL_CONTROLLERDEVICEREMAPPED)) > 0) {
+         joysticks_lock();
+         for (int i = 0; i < n; i++)
+            _al_sdl_joystick_event(&events[i]);
+         joysticks_unlock();
+      }
+      /* Drop anything we don't consume (e.g. sensor events) so the queue
+       * cannot grow unbounded; nothing else reads it in this mode.
+       */
+      SDL_FlushEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);
+      al_rest(0.004);
+   }
+}
+
+static bool sdl_init_joystick_standalone(void)
+{
+   /* ZC and other Allegro apps handle these themselves. */
+   SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
+   /* There is no SDL window, so never gate joystick input on focus. */
+   SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+   if (SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) != 0) {
+      ALLEGRO_ERROR("SDL_InitSubSystem(JOYSTICK|GAMECONTROLLER) failed: %s\n",
+         SDL_GetError());
+      return false;
+   }
+   standalone_add_mappings();
+
+   _al_mutex_init(&standalone_mutex);
+   joysticks_lock();
+   bool ok = sdl_init_joystick();
+   joysticks_unlock();
+   if (!ok) {
+      SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
+      return false;
+   }
+   _al_thread_create(&standalone_thread, standalone_pump, NULL);
+   return true;
+}
+
+static void sdl_exit_joystick_standalone(void)
+{
+   _al_thread_join(&standalone_thread);
+   sdl_exit_joystick();
+   _al_mutex_destroy(&standalone_mutex);
+   SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
+}
+
+#endif /* SDL2_JOYSTICK_STANDALONE */
 
 ALLEGRO_JOYSTICK_DRIVER *_al_sdl_joystick_driver(void)
 {
@@ -450,8 +587,13 @@ ALLEGRO_JOYSTICK_DRIVER *_al_sdl_joystick_driver(void)
    vt->joydrv_name = "SDL2 Joystick";
    vt->joydrv_desc = "SDL2 Joystick";
    vt->joydrv_ascii_name = "SDL2 Joystick";
+#ifdef SDL2_JOYSTICK_STANDALONE
+   vt->init_joystick = sdl_init_joystick_standalone;
+   vt->exit_joystick = sdl_exit_joystick_standalone;
+#else
    vt->init_joystick = sdl_init_joystick;
    vt->exit_joystick = sdl_exit_joystick;
+#endif
    vt->reconfigure_joysticks = sdl_reconfigure_joysticks;
    vt->num_joysticks = sdl_num_joysticks;
    vt->get_joystick = sdl_get_joystick;

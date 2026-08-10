@@ -18,6 +18,7 @@
 
 #include "allegro5/allegro.h"
 #include "allegro5/platform/aintosx.h"
+#include "allegro5/internal/aintern_joystick.h"
 #include "allegro5/internal/aintern_osxclipboard.h"
 #include <sys/stat.h>
 
@@ -575,7 +576,11 @@ ALLEGRO_SYSTEM_INTERFACE *_al_system_osx_driver(void)
       vt->get_display_driver = _al_osx_get_display_driver;
       vt->get_keyboard_driver = _al_osx_get_keyboard_driver;
       vt->get_mouse_driver = _al_osx_get_mouse_driver;
+#ifdef ALLEGRO_CFG_SDL2_JOYSTICK
+      vt->get_joystick_driver = _al_sdl_joystick_driver;
+#else
       vt->get_joystick_driver = _al_osx_get_joystick_driver;
+#endif
       vt->get_num_display_modes = _al_osx_get_num_display_modes;
       vt->get_display_mode = _al_osx_get_display_mode;
       vt->shutdown_system = osx_sys_exit;

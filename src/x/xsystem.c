@@ -8,6 +8,7 @@ extern int _Xdebug; /* part of Xlib */
 #include "allegro5/allegro.h"
 #include "allegro5/internal/aintern.h"
 #include "allegro5/internal/aintern_bitmap.h"
+#include "allegro5/internal/aintern_joystick.h"
 #include "allegro5/internal/aintern_x.h"
 #include "allegro5/internal/aintern_xcursor.h"
 #include "allegro5/internal/aintern_xembed.h"
@@ -198,7 +199,11 @@ static ALLEGRO_MOUSE_DRIVER *xglx_get_mouse_driver(void)
 
 static ALLEGRO_JOYSTICK_DRIVER *xglx_get_joystick_driver(void)
 {
+#ifdef ALLEGRO_CFG_SDL2_JOYSTICK
+   return _al_sdl_joystick_driver();
+#else
    return _al_joystick_driver_list[0].driver;
+#endif
 }
 
 static ALLEGRO_HAPTIC_DRIVER *xglx_get_haptic_driver(void)

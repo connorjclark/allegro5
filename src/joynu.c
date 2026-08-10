@@ -38,6 +38,11 @@ ALLEGRO_DEBUG_CHANNEL("joystick");
 static ALLEGRO_JOYSTICK_DRIVER *new_joystick_driver = NULL;
 static ALLEGRO_EVENT_SOURCE es;
 static _AL_VECTOR joystick_mappings = _AL_VECTOR_INITIALIZER(_AL_JOYSTICK_MAPPING);
+/* Unparsed mapping lines, in SDL's gamecontrollerdb format, for joystick
+ * drivers (i.e. the standalone SDL2 driver) that feed mappings to a backend
+ * which understands that format natively.
+ */
+static _AL_VECTOR raw_joystick_mapping_lines = _AL_VECTOR_INITIALIZER(char *);
 
 
 static void destroy_joystick_mapping(_AL_JOYSTICK_MAPPING *mapping);
@@ -98,6 +103,10 @@ void al_uninstall_joystick(void)
       destroy_joystick_mapping(_al_vector_ref(&joystick_mappings, i));
    }
    _al_vector_free(&joystick_mappings);
+   for (int i = 0; i < (int)_al_vector_size(&raw_joystick_mapping_lines); i++) {
+      al_free(*(char **)_al_vector_ref(&raw_joystick_mapping_lines, i));
+   }
+   _al_vector_free(&raw_joystick_mapping_lines);
 }
 
 
@@ -863,9 +872,18 @@ bool al_set_joystick_mappings_f(ALLEGRO_FILE *f)
 #endif
          return false;
       }
+      char **raw_slot = _al_vector_alloc_back(&raw_joystick_mapping_lines);
+      *raw_slot = _al_strdup(line);
    }
    ALLEGRO_INFO("Parsed %d joystick mappings\n", (int)_al_vector_size(&joystick_mappings));
    return true;
+}
+
+
+
+const _AL_VECTOR *_al_get_raw_joystick_mapping_lines(void)
+{
+   return &raw_joystick_mapping_lines;
 }
 
 
