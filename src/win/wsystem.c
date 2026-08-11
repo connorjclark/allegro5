@@ -389,8 +389,13 @@ static bool win_use_directinput(void)
 static ALLEGRO_JOYSTICK_DRIVER *win_get_joystick_driver(void)
 {
 #ifdef ALLEGRO_CFG_SDL2_JOYSTICK
-   if (win_configured_joystick_driver_is("SDL")
-      || win_configured_joystick_driver_is("SDL2")) {
+   /* The SDL2 joystick driver is the default when compiled in; set
+    * [joystick] driver = native (or directinput/xinput exclusively) in the
+    * system config to use the native drivers instead.
+    */
+   if (!win_configured_joystick_driver_is("NATIVE")
+      && !win_use_directinput()
+      && !win_use_xinput()) {
       ALLEGRO_DEBUG("Selected SDL2 joystick driver.\n");
       return _al_sdl_joystick_driver();
    }
