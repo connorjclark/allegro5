@@ -755,11 +755,9 @@ static LRESULT CALLBACK window_callback(HWND hWnd, UINT message,
          bool extended = (lParam >> 24) & 0x1;
          bool previous = (lParam >> 30) & 0x1;
 
-         /* The docs say that previous should always be 1, but it's not in practice.
-          * The events with previous = 0 seem malformed? I can get them reliably by
-          * pressing + holding Shift and then tapping Alt. */
-         if (previous)
-            _al_win_kbd_handle_key_release(scode, vcode, extended, win_display);
+         /* previous is normally set for key up messages; see
+          * _al_win_kbd_handle_key_release for how a clear bit is treated. */
+         _al_win_kbd_handle_key_release(scode, vcode, extended, previous, win_display);
          break;
       }
       case WM_SYSCOMMAND: {

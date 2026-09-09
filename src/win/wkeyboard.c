@@ -420,7 +420,7 @@ void _al_win_kbd_handle_key_press(int scode, int vcode, bool extended,
 /* _al_win_kbd_handle_key_release:
  *  Does stuff when a key is released.
  */
-void _al_win_kbd_handle_key_release(int scode, int vcode, bool extended, ALLEGRO_DISPLAY_WIN *win_disp)
+void _al_win_kbd_handle_key_release(int scode, int vcode, bool extended, bool previous, ALLEGRO_DISPLAY_WIN *win_disp)
 {
    ALLEGRO_EVENT event;
    int my_code;
@@ -437,6 +437,17 @@ void _al_win_kbd_handle_key_release(int scode, int vcode, bool extended, ALLEGRO
          vcode = MapVirtualKey(scode, MAPVK_VSC_TO_VK_EX);
       my_code = hw_to_mycode[vcode];
    }
+
+   /* MSDN says the "previous key state" bit is always set for key up
+    * messages, but in practice it is clear for the spurious Control release
+    * generated when holding Shift and tapping Alt, and also for real releases
+    * of keys Windows already considers up (e.g. after another process
+    * injected a key up for the same key). Ignoring every such message left
+    * those keys stuck down until they were pressed and released again, so
+    * only ignore it when we don't have the key down. */
+   if (!previous && !_AL_KEYBOARD_STATE_KEY_DOWN(the_state, my_code))
+      return;
+
    update_modifiers(my_code, false);
 
    _AL_KEYBOARD_STATE_CLEAR_KEY_DOWN(the_state, my_code);
@@ -445,9 +456,9 @@ void _al_win_kbd_handle_key_release(int scode, int vcode, bool extended, ALLEGRO
       both have been released. If one of the Shift keys is still reported
       as down, we need to release it as well. */
    if (my_code == ALLEGRO_KEY_LSHIFT && _AL_KEYBOARD_STATE_KEY_DOWN(the_state, ALLEGRO_KEY_RSHIFT))
-      _al_win_kbd_handle_key_release(scode, VK_RSHIFT, extended, win_disp);
+      _al_win_kbd_handle_key_release(scode, VK_RSHIFT, extended, true, win_disp);
    else if (my_code == ALLEGRO_KEY_RSHIFT && _AL_KEYBOARD_STATE_KEY_DOWN(the_state, ALLEGRO_KEY_LSHIFT))
-      _al_win_kbd_handle_key_release(scode, VK_LSHIFT, extended, win_disp);
+      _al_win_kbd_handle_key_release(scode, VK_LSHIFT, extended, true, win_disp);
 
    if (!_al_event_source_needs_to_generate_event(&the_keyboard.es))
       return;
