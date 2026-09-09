@@ -1,0 +1,24 @@
+## Testing plan (Allegro only, Windows)
+
+Build two trees: the pin a2799f13b and the branch. Build examples in both (`-DWANT_EXAMPLES=ON`).
+
+**1. The bug, deterministically.** Run `ex_stuck_key`, then from another prompt run `python ex_stuck_key_post.py`.
+
+| Build | Log after the script |
+|---|---|
+| Unpatched | `KEY_DOWN KEY_RIGHT`, `state: held = KEY_RIGHT`, then nothing. Window stays green. Tapping Right yourself finally logs `KEY_UP` and clears the state. |
+| Patched | Same, then `KEY_UP KEY_RIGHT` and `state: held = (none)`. Window goes black. |
+
+Repeat with `--key left`, `up`, `down` (extended keys) and `--key z` (plain key) so both keycode mappings are exercised.
+
+**2. Normal releases unchanged.** `python ex_stuck_key_post.py --normal`, and again with `--key z --normal`. Both builds must log `KEY_UP` and clear the state.
+
+**3. Real keyboard.** In `ex_stuck_key`, hold Right for a few seconds and release. Expect `KEY_DOWN`, repeat `KEY_CHAR`s, `KEY_UP`, and the state returning to `(none)` on both builds. Then hold Right, Alt-Tab away, release, Alt-Tab back: state must be `(none)` on both (focus loss goes through a different path and should be unaffected).
+
+**4. The case upstream's check was added for.** Run `ex_keyboard_events` on the patched build. Hold Shift and tap Alt several times, then release Shift. Expect no `KEY_UP` for a Control key and no event with `code=000`. This is the phantom release from issue 1348; it is still dropped because Control is not held. Then hold Alt and tap Shift, release both, and press a letter: the KEY_CHAR should carry no stale Shift or Alt modifier.
+
+**5. Modifier releases that are real.** In `ex_stuck_key`, physically hold Left Ctrl, and while holding it run `python ex_stuck_key_post.py --key lctrl`. The posted key-up has bit 30 clear but Ctrl is genuinely held, so the patched build must log `KEY_UP` for it; the unpatched build will not. Windows autorepeat will press it again while you keep holding, which is fine.
+
+**6. Shift pair logic.** Hold both Shift keys, release one, then the other, in `ex_keyboard_events`. Expect two `KEY_UP`s (one per Shift) on both builds. This confirms the recursive Shift release call, which now passes `previous = true`, still behaves.
+
+If 1 through 6 pass, the PR is safe to send upstream as-is. Step 1 is the one that demonstrates the defect; steps 4 and 6 are the regression guards.
