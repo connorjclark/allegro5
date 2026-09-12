@@ -21,6 +21,7 @@
 
 #define ALLEGRO_NO_COMPATIBILITY
 
+#include <ctype.h>
 #include <stdio.h>
 
 #include "allegro5/allegro.h"
@@ -859,21 +860,41 @@ bool al_set_joystick_mappings_f(ALLEGRO_FILE *f)
    char line[1024];
 
    while (al_fgets(f, line, sizeof(line))) {
-      if (line[0] == '#' || line[0] == '\n')
+      /* Trim the line ending and surrounding whitespace, then skip blank and
+       * comment lines. The file is read in binary mode, so a file with CRLF
+       * line endings (e.g. gamecontrollerdb.txt checked out on Windows) has
+       * blank lines of "\r\n", which used to fail to parse and abort the
+       * whole load (https://github.com/liballeg/allegro5/issues/1772).
+       */
+      size_t len = strlen(line);
+      while (len > 0 && isspace((unsigned char)line[len - 1]))
+         line[--len] = '\0';
+      const char *start = line;
+      while (isspace((unsigned char)*start))
+         start++;
+      if (*start == '\0' || *start == '#')
          continue;
+      /* Record the raw line before parsing it: a driver that hands the
+       * lines to SDL (see _al_get_raw_joystick_mapping_lines) may accept
+       * lines this parser does not.
+       */
+      char **raw_slot = _al_vector_alloc_back(&raw_joystick_mapping_lines);
+      *raw_slot = _al_strdup(start);
+
       _AL_JOYSTICK_MAPPING *mapping = _al_vector_alloc_back(&joystick_mappings);
       if (!mapping)
          return false;
-      if (!parse_sdl_joystick_mapping(line, mapping)) {
-         ALLEGRO_ERROR("Could not parse mapping line: %s\n", line);
+      if (!parse_sdl_joystick_mapping(start, mapping)) {
+         /* Skip the line rather than abandoning the rest of the file. */
+         ALLEGRO_ERROR("Could not parse mapping line: %s\n", start);
 #ifdef JOYSTICK_DEBUG
          print_mapping(mapping);
          printf("========================");
 #endif
-         return false;
+         destroy_joystick_mapping(mapping);
+         _al_vector_delete_at(&joystick_mappings, _al_vector_size(&joystick_mappings) - 1);
+         continue;
       }
-      char **raw_slot = _al_vector_alloc_back(&raw_joystick_mapping_lines);
-      *raw_slot = _al_strdup(line);
    }
    ALLEGRO_INFO("Parsed %d joystick mappings\n", (int)_al_vector_size(&joystick_mappings));
    return true;
