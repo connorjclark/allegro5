@@ -50,6 +50,8 @@ static _AL_VECTOR joysticks = _AL_VECTOR_INITIALIZER(ALLEGRO_JOYSTICK_SDL *); /*
 #ifdef SDL2_JOYSTICK_STANDALONE
 static _AL_THREAD standalone_thread;
 static _AL_MUTEX standalone_mutex; /* zero-init: unlocked until _al_mutex_init */
+static _AL_COND standalone_cond;
+static int standalone_init_state; /* 0 = pending, 1 = ok, -1 = failed */
 #endif
 
 /* In standalone mode the event pump runs on a background thread while
@@ -545,9 +547,61 @@ static void standalone_add_mappings(void)
    }
 }
 
+/* Initializes SDL's joystick subsystem. Runs on the pump thread: some SDL
+ * backends are bound to the thread that initialized them. SDL's IOKit
+ * backend (macOS) schedules its HID manager on that thread's run loop and
+ * only delivers hotplug callbacks when the same thread later pumps, so
+ * initializing on the app thread would leave generic (non-HIDAPI) pads
+ * unable to hotplug.
+ */
+static bool standalone_sdl_init(void)
+{
+   /* ZC and other Allegro apps handle these themselves. */
+   SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
+   /* On Windows, SDL's RawInput backend (which claims Xbox controllers)
+    * receives its input as WM_INPUT messages on a message window owned by
+    * the thread that initializes the joystick subsystem. Without the video
+    * subsystem nothing runs a Win32 message loop on that thread, so no
+    * input would ever arrive. This hint makes SDL create its own internal
+    * thread that owns the message window and pumps it. No effect on other
+    * platforms.
+    */
+   SDL_SetHint(SDL_HINT_JOYSTICK_THREAD, "1");
+   /* There is no SDL window, so never gate joystick input on focus. */
+   SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+   /* Report Nintendo-style pads by their button labels (A/B and X/Y swapped
+    * relative to the physical Xbox positions), so that label-based bindings
+    * match what is printed on the controller. This is SDL's default; set it
+    * explicitly because default control schemes may depend on it.
+    */
+   SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "1");
+   if (SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) != 0) {
+      ALLEGRO_ERROR("SDL_InitSubSystem(JOYSTICK|GAMECONTROLLER) failed: %s\n",
+         SDL_GetError());
+      return false;
+   }
+   standalone_add_mappings();
+
+   joysticks_lock();
+   bool ok = sdl_init_joystick();
+   joysticks_unlock();
+   if (!ok)
+      SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
+   return ok;
+}
+
 static void standalone_pump(_AL_THREAD *self, void *unused)
 {
    (void)unused;
+
+   bool ok = standalone_sdl_init();
+   _al_mutex_lock(&standalone_mutex);
+   standalone_init_state = ok ? 1 : -1;
+   _al_cond_broadcast(&standalone_cond);
+   _al_mutex_unlock(&standalone_mutex);
+   if (!ok)
+      return;
+
    SDL_Event events[16];
    while (!_al_get_thread_should_stop(self)) {
       SDL_PumpEvents();
@@ -560,44 +614,56 @@ static void standalone_pump(_AL_THREAD *self, void *unused)
          joysticks_unlock();
       }
       /* Drop anything we don't consume (e.g. sensor events) so the queue
-       * cannot grow unbounded; nothing else reads it in this mode.
+       * cannot grow unbounded; nothing else reads it in this mode. Leave the
+       * joystick/controller range alone: an event another thread pushes
+       * between the drain above and this flush (e.g. SDL's GameController
+       * framework backend on macOS posts device-added events from the main
+       * thread) must survive until the next drain.
        */
-      SDL_FlushEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);
+      SDL_FlushEvents(SDL_FIRSTEVENT, SDL_JOYAXISMOTION - 1);
+      SDL_FlushEvents(SDL_CONTROLLERDEVICEREMAPPED + 1, SDL_LASTEVENT);
       al_rest(0.004);
    }
+
+   /* Shut down on this thread too: e.g. the IOKit backend unschedules its
+    * HID manager from the current thread's run loop.
+    */
+   joysticks_lock();
+   sdl_exit_joystick();
+   joysticks_unlock();
+   SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
 }
 
+/* Starts the pump thread and blocks until it reports whether SDL's joystick
+ * subsystem came up.
+ */
 static bool sdl_init_joystick_standalone(void)
 {
-   /* ZC and other Allegro apps handle these themselves. */
-   SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
-   /* There is no SDL window, so never gate joystick input on focus. */
-   SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
-   if (SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) != 0) {
-      ALLEGRO_ERROR("SDL_InitSubSystem(JOYSTICK|GAMECONTROLLER) failed: %s\n",
-         SDL_GetError());
-      return false;
-   }
-   standalone_add_mappings();
-
    _al_mutex_init(&standalone_mutex);
-   joysticks_lock();
-   bool ok = sdl_init_joystick();
-   joysticks_unlock();
-   if (!ok) {
-      SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
-      return false;
-   }
+   _al_cond_init(&standalone_cond);
+   standalone_init_state = 0;
    _al_thread_create(&standalone_thread, standalone_pump, NULL);
-   return true;
+
+   _al_mutex_lock(&standalone_mutex);
+   while (standalone_init_state == 0)
+      _al_cond_wait(&standalone_cond, &standalone_mutex);
+   bool ok = standalone_init_state > 0;
+   _al_mutex_unlock(&standalone_mutex);
+
+   if (!ok) {
+      _al_thread_join(&standalone_thread);
+      _al_cond_destroy(&standalone_cond);
+      _al_mutex_destroy(&standalone_mutex);
+   }
+   return ok;
 }
 
 static void sdl_exit_joystick_standalone(void)
 {
+   /* The pump thread closes the joysticks and quits SDL before exiting. */
    _al_thread_join(&standalone_thread);
-   sdl_exit_joystick();
+   _al_cond_destroy(&standalone_cond);
    _al_mutex_destroy(&standalone_mutex);
-   SDL_QuitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
 }
 
 #endif /* SDL2_JOYSTICK_STANDALONE */
