@@ -496,6 +496,31 @@ static bool sdl_get_active(ALLEGRO_JOYSTICK *joy)
    return ret;
 }
 
+/* Returns the joystick's SDL_GameControllerType as an int, or -1 if the
+ * joystick is not an SDL game controller (or not an SDL joystick at all,
+ * e.g. a native driver is selected). Lets users distinguish controllers
+ * whose face buttons carry letter labels (Xbox, Nintendo) from those that
+ * do not (PlayStation).
+ */
+int _al_sdl_joystick_controller_type(ALLEGRO_JOYSTICK *joy)
+{
+   int ret = -1;
+   joysticks_lock();
+   /* Not get_joystick_from_allegro: when a native driver is selected this
+    * driver's joystick list is empty, and that lookup asserts on a miss.
+    */
+   for (int i = 0; i < (int)_al_vector_size(&joysticks); i++) {
+      ALLEGRO_JOYSTICK_SDL *joy_sdl = *(ALLEGRO_JOYSTICK_SDL **)_al_vector_ref(&joysticks, i);
+      if (&joy_sdl->allegro == joy) {
+         if (joy_sdl->sdl_gc)
+            ret = (int)SDL_GameControllerGetType(joy_sdl->sdl_gc);
+         break;
+      }
+   }
+   joysticks_unlock();
+   return ret;
+}
+
 #ifdef SDL2_JOYSTICK_STANDALONE
 
 /* Feed mapping lines the user gave to al_set_joystick_mappings into SDL,

@@ -150,6 +150,9 @@ bool _al_joystick_configured_driver_is(const char *name);
 #ifdef ALLEGRO_CFG_SDL2_JOYSTICK
 AL_FUNC(ALLEGRO_JOYSTICK_DRIVER *, _al_sdl_joystick_driver, (void));
 #endif
+#if defined(ALLEGRO_CFG_SDL2_JOYSTICK) || defined(ALLEGRO_SDL)
+AL_FUNC(int, _al_sdl_joystick_controller_type, (ALLEGRO_JOYSTICK *joy));
+#endif
 
 #ifdef __cplusplus
    }
