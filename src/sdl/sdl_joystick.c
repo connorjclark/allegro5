@@ -308,7 +308,16 @@ void _al_sdl_joystick_event(SDL_Event *e)
    }
 
    if (emit) {
+      /* NULL while al_install_joystick is still running: the standalone pump
+       * thread starts draining SDL's queue as soon as it signals init done,
+       * and SDL queues a device-added event for every pad already connected,
+       * all before the caller has recorded the driver as installed. Those
+       * pads were registered by sdl_init_joystick already, so dropping the
+       * configuration event loses nothing.
+       */
       ALLEGRO_EVENT_SOURCE *es = al_get_joystick_event_source();
+      if (!es)
+         return;
       _al_event_source_lock(es);
       _al_event_source_emit_event(es, &event);
       _al_event_source_unlock(es);
