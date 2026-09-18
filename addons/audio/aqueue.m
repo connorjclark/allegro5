@@ -47,6 +47,10 @@ typedef struct ALLEGRO_AQ_DATA {
    int bits_per_sample;
    int channels;
    bool playing;
+   /* Set before the feeder thread starts, cleared by the thread as its last
+    * act. deallocate_voice waits on it so the thread never touches this
+    * struct after it has been freed. */
+   bool thread_running;
    unsigned int buffer_size;
    unsigned char *silence;
    ALLEGRO_VOICE *voice;
@@ -320,6 +324,17 @@ static int _aqueue_allocate_voice(ALLEGRO_VOICE *voice)
 static void _aqueue_deallocate_voice(ALLEGRO_VOICE *voice)
 {
    ALLEGRO_AQ_DATA *ex_data = voice->extra;
+
+   /* stop_voice only asks the feeder thread to exit (the queue is disposed
+    * asynchronously and the thread notices 'playing' at its next run loop
+    * timeout, up to 50ms later). Wait for it here rather than in stop_voice:
+    * stop_voice runs with the voice mutex held, and the thread's buffer
+    * callback takes that mutex, so waiting there could deadlock. This method
+    * is called without the mutex. */
+   while (ex_data->thread_running) {
+      al_rest(0.001);
+   }
+
    al_free(ex_data->silence);
    al_free(ex_data);
    voice->extra = NULL;
@@ -428,6 +443,8 @@ static void *stream_proc(void *in_data)
 
    THREAD_END
 
+   ex_data->thread_running = false;
+
    return NULL;
 }
 
@@ -443,6 +460,7 @@ static int _aqueue_start_voice(ALLEGRO_VOICE *voice)
    if (voice->is_streaming && !ex_data->playing) {
       *(ALLEGRO_VOICE**)_al_vector_alloc_back(&saved_voices) = voice;
       ex_data->playing = true;
+      ex_data->thread_running = true;
       al_run_detached_thread(stream_proc, voice);
       return 0;
    }
