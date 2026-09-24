@@ -152,6 +152,7 @@ AL_FUNC(ALLEGRO_JOYSTICK_DRIVER *, _al_sdl_joystick_driver, (void));
 #endif
 #if defined(ALLEGRO_CFG_SDL2_JOYSTICK) || defined(ALLEGRO_SDL)
 AL_FUNC(int, _al_sdl_joystick_controller_type, (ALLEGRO_JOYSTICK *joy));
+AL_FUNC(int, _al_sdl_joystick_mapping_uses_labels, (ALLEGRO_JOYSTICK *joy));
 #endif
 
 #ifdef __cplusplus

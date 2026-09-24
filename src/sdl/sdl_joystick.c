@@ -532,6 +532,38 @@ int _al_sdl_joystick_controller_type(ALLEGRO_JOYSTICK *joy)
    return ret;
 }
 
+/* Whether the joystick's SDL game controller mapping names the face buttons
+ * by their printed labels rather than by position. SDL's controller database
+ * carries the mappings of Nintendo-labeled pads (Switch Pro, Joy-Cons, most
+ * 8BitDo models) as pairs guarded by a "hint:" field on
+ * SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, and keeps that field in the
+ * mapping string it reports, so its presence tells the two apart. Returns 1
+ * for a label-based mapping, 0 for a positional one (including any mapping
+ * without the field, and HIDAPI-generated mappings: the HIDAPI drivers apply
+ * the hint themselves), and -1 if the joystick is not an SDL game
+ * controller.
+ */
+int _al_sdl_joystick_mapping_uses_labels(ALLEGRO_JOYSTICK *joy)
+{
+   int ret = -1;
+   joysticks_lock();
+   for (int i = 0; i < (int)_al_vector_size(&joysticks); i++) {
+      ALLEGRO_JOYSTICK_SDL *joy_sdl = *(ALLEGRO_JOYSTICK_SDL **)_al_vector_ref(&joysticks, i);
+      if (&joy_sdl->allegro == joy) {
+         if (joy_sdl->sdl_gc) {
+            char *mapping = SDL_GameControllerMapping(joy_sdl->sdl_gc);
+            /* The negated form is "hint:!SDL_...", which does not match. */
+            ret = mapping && strstr(mapping,
+               "hint:" SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS ":=1") != NULL;
+            SDL_free(mapping);
+         }
+         break;
+      }
+   }
+   joysticks_unlock();
+   return ret;
+}
+
 #ifdef SDL2_JOYSTICK_STANDALONE
 
 /* Feed mapping lines the user gave to al_set_joystick_mappings into SDL,
