@@ -1925,11 +1925,18 @@ static void destroy_display(ALLEGRO_DISPLAY* d)
          }
 #endif
       }
+      // The window is the view's only owner, so closing it may free the
+      // view. Keep the view alive until it is detached from the display;
+      // this has to happen on the main thread, before the display is freed.
+      NSView* view = [dpy->view retain];
       if (dpy->win) {
          // Destroy the containing window if there is one
          [dpy->win close];
          dpy->win = nil;
       }
+      [(ALOpenGLView*)view setAllegroDisplay: NULL];
+      [view release];
+      dpy->view = nil;
    });
    _al_ogl_unmanage_extensions(&dpy->parent);
    [dpy->ctx release];
@@ -1954,7 +1961,6 @@ static void destroy_display(ALLEGRO_DISPLAY* d)
       al_destroy_cond(dpy->flip_cond);
       CVDisplayLinkRelease(dpy->display_link);
    }
-   [dpy->view setAllegroDisplay: NULL];
    al_free(d->vertex_cache);
    al_free(d);
    [pool drain];
