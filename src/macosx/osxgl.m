@@ -1994,11 +1994,6 @@ static void flip_display(ALLEGRO_DISPLAY *disp)
         al_set_target_backbuffer(disp);
    }
 
-   /* Pick up any resize that AppKit reported while we were drawing this frame
-    * - see ALOpenGLContext.
-    */
-   osx_update_context(dpy, false);
-
    if (dpy->flip_mutex) {
       al_lock_mutex(dpy->flip_mutex);
       int old_flips = dpy->num_flips;
