@@ -581,6 +581,7 @@ static bool parse_sdl_joystick_mapping(const char *str, _AL_JOYSTICK_MAPPING *ma
       return false;
    }
    memcpy(guid_str, c, n);
+   guid_str[n] = '\0';
    mapping->guid = _al_joystick_guid_from_str(guid_str);
    c += n + 1;
 
