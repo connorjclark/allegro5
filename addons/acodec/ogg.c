@@ -277,9 +277,13 @@ ALLEGRO_SAMPLE *_al_load_ogg_vorbis_f(ALLEGRO_FILE *file)
       (void)signedness;
       read = lib.ov_read(&vf, buffer + pos, read_size, &bitstream);
 #endif
-      pos += read;
-      if (read == 0)
+      /* A hole in the data is skipped. Other errors (also negative) end the
+       * sample - adding them to pos would write before the buffer. */
+      if (read == OV_HOLE)
+         continue;
+      if (read <= 0)
          break;
+      pos += read;
    }
 
    lib.ov_clear(&vf);
@@ -410,12 +414,14 @@ static size_t ogg_stream_update(ALLEGRO_AUDIO_STREAM *stream, void *data,
       read = lib.ov_read(extra->vf, (char *)data + pos,
          read_length - pos, &extra->bitstream);
 #endif
-      pos += read;
-
-      if (read == 0) {
+      /* As in _al_load_ogg_vorbis_f: skip holes, stop at other errors. */
+      if (read == OV_HOLE)
+         continue;
+      if (read <= 0) {
          /* Return the number of useful bytes written. */
          return pos;
       }
+      pos += read;
    }
 
    return pos;
